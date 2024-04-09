@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+    <style>
+      body {
+        margin: 0;
+      }
+    </style>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.163.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.163.0/examples/jsm/",
+          "@recast-navigation/core": "https://cdn.jsdelivr.net/npm/@recast-navigation/core@0.17.0/dist/index.mjs",
+          "@recast-navigation/generators": "https://cdn.jsdelivr.net/npm/@recast-navigation/generators@0.17.0/dist/index.mjs",
+          "@recast-navigation/three": "https://cdn.jsdelivr.net/npm/@recast-navigation/three@0.17.0/dist/index.mjs"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <script type="module">
+      import * as THREE from "three";
+      import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+      import {
+        NavMeshQuery,
+        init,
+        importNavMesh,
+        exportNavMesh,
+      } from "@recast-navigation/core";
+
+      import {
+        NavMeshHelper,
+        threeToSoloNavMesh,
+        threeToTileCache,
+      } from "@recast-navigation/three";
+      import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(
+        75,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        1000
+      );
+
+      const renderer = new THREE.WebGLRenderer();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
+      const controls = new OrbitControls(camera, renderer.domElement);
+      camera.position.set(0, 8, 16);
+      controls.update();
+
+      const light = new THREE.AmbientLight(0xffffff);
+      scene.add(light);
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        renderer.render(scene, camera);
+      }
+      animate();
+
+      init().then(() => {
+        new GLTFLoader().load("./plane.glb", function (gltf) {
+          scene.add(gltf.scene);
+          const mesh = gltf.scene.getObjectByName("plane");
+          const { success, navMesh, tileCache } = threeToTileCache([mesh], {
+            // const { success, navMesh } = threeToSoloNavMesh([mesh], {
+            tileSize: 16,
+            cs: 0.2,
+            ch: 0.2,
+            walkableSlopeAngle: 35,
+            walkableHeight: 1,
+            walkableClimb: 0.1,
+            walkableRadius: 1,
+            maxEdgeLen: 12,
+            maxSimplificationError: 1.3,
+            mergeRegionArea: 20,
+            maxVertsPerPoly: 6,
+            detailSampleDist: 6,
+            detailSampleMaxError: 1,
+
+            minRegionArea: 100,
+          });
+
+          if (!success) {
+            console.log("notSuccess");
+            return;
+          }
+
+          const navMeshHelper = new NavMeshHelper({ navMesh });
+          scene.add(navMeshHelper);
+          navMeshHelper.update();
+        });
+      });
+    </script>
+  </body>
+</html>
