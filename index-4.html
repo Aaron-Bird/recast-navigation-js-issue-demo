@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+      }
+    </style>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.163.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.163.0/examples/jsm/",
+          "@recast-navigation/core": "https://cdn.jsdelivr.net/npm/@recast-navigation/core@0.24.0/dist/index.mjs",
+          "@recast-navigation/generators": "https://cdn.jsdelivr.net/npm/@recast-navigation/generators@0.24.0/dist/index.mjs",
+          "@recast-navigation/three": "https://cdn.jsdelivr.net/npm/@recast-navigation/three@0.24.0/dist/index.mjs"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <script type="module">
+      import * as THREE from "three";
+      import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+      import {
+        NavMeshQuery,
+        init,
+        importNavMesh,
+      } from "@recast-navigation/core";
+
+      import { NavMeshHelper } from "@recast-navigation/three";
+      import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(
+        75,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        1000
+      );
+
+      const renderer = new THREE.WebGLRenderer({ alpha: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
+      const controls = new OrbitControls(camera, renderer.domElement);
+      camera.position.set(0, 20, 0);
+      controls.update();
+
+      const light = new THREE.AmbientLight(0xffffff, 3);
+      scene.add(light);
+
+      const light2 = new THREE.DirectionalLight(0xffffff, 10);
+      light2.position.set(0, 20, 0);
+      scene.add(light2);
+
+      const animate = () => {
+        requestAnimationFrame(animate);
+        controls.update();
+        renderer.render(scene, camera);
+      };
+      animate();
+
+      const geometry = new THREE.BufferGeometry();
+      const material = new THREE.LineBasicMaterial({ color: "red" });
+      const line = new THREE.Line(geometry, material);
+      scene.add(line);
+
+      const updateLine = (point) => {
+        line.geometry.dispose();
+        const geometry = new THREE.BufferGeometry().setFromPoints(point);
+        line.geometry = geometry;
+      };
+
+      const main = async () => {
+        await init();
+        const gltf = await new Promise((resolve) => {
+          new GLTFLoader().load("./plane3.glb", (resp) => resolve(resp));
+        });
+
+        scene.add(gltf.scene);
+        const mesh = gltf.scene.getObjectByName("plane");
+        mesh.material.side = THREE.DoubleSide;
+
+        const buffer = await fetch("./navmesh3.bin").then((resp) =>
+          resp.arrayBuffer()
+        );
+        const array = new Uint8Array(buffer);
+        const { navMesh } = importNavMesh(array);
+        const navMeshHelper = new NavMeshHelper({ navMesh });
+        scene.add(navMeshHelper);
+        navMeshHelper.update();
+
+        const navMeshQuery = new NavMeshQuery({ navMesh });
+        const { point: start } = navMeshQuery.findClosestPoint(
+          new THREE.Vector3(-9, 0, -9),
+          { halfExtents: { x: 1, y: 4, z: 1 } }
+        );
+        const { point: end } = navMeshQuery.findClosestPoint(
+          new THREE.Vector3(9, 0, 9),
+          {
+            halfExtents: { x: 1, y: 4, z: 1 },
+          }
+        );
+
+        const maxPathPolys = 1000;
+        const maxStraightPathPoints = 1000;
+        const { path } = navMeshQuery.computePath(start, end, {
+          maxPathPolys,
+          maxStraightPathPoints,
+        });
+
+        updateLine(path);
+
+        const raycaster = new THREE.Raycaster();
+        renderer.domElement.addEventListener("click", (event) => {
+          const { clientX, clientY } = event;
+          const pointer = new THREE.Vector2(
+            (clientX / window.innerWidth) * 2 - 1,
+            -(clientY / window.innerHeight) * 2 + 1
+          );
+
+          raycaster.setFromCamera(pointer, camera);
+          const [intersect] = raycaster.intersectObjects([scene], true);
+          if (intersect) {
+            const { point: end } = navMeshQuery.findClosestPoint(
+              intersect.point,
+              {
+                halfExtents: { x: 2, y: 4, z: 2 },
+              }
+            );
+
+            const { path } = navMeshQuery.computePath(start, end, {
+              maxPathPolys,
+              maxStraightPathPoints,
+            });
+
+            const endPoint = path[path.length - 1];
+            if (
+              endPoint.x !== end.x ||
+              endPoint.y !== end.y ||
+              endPoint.z !== end.z
+            ) {
+              console.log("Can't find the path!");
+            }
+
+            updateLine(path);
+          }
+        });
+      };
+      main();
+    </script>
+  </body>
+</html>
