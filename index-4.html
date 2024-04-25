@@ -97,12 +97,13 @@
         const navMeshQuery = new NavMeshQuery({ navMesh });
         const { point: start } = navMeshQuery.findClosestPoint(
           new THREE.Vector3(-9, 0, -9),
-          { halfExtents: { x: 1, y: 4, z: 1 } }
+          { halfExtents: { x: 2, y: 4, z: 2 } }
         );
         const { point: end } = navMeshQuery.findClosestPoint(
-          new THREE.Vector3(9, 0, 9),
+          new THREE.Vector3(-9, 0, 9),
+
           {
-            halfExtents: { x: 1, y: 4, z: 1 },
+            halfExtents: { x: 2, y: 4, z: 2 },
           }
         );
 
@@ -126,6 +127,7 @@
           raycaster.setFromCamera(pointer, camera);
           const [intersect] = raycaster.intersectObjects([scene], true);
           if (intersect) {
+            console.log(intersect.point);
             const { point: end } = navMeshQuery.findClosestPoint(
               intersect.point,
               {
